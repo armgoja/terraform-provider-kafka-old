@@ -10,9 +10,7 @@ import (
 func Provider() terraform.ResourceProvider {
 
 	// mapping of resources against the operations that are available on the resource
-	resourceMap := map[string]*schema.Resource{
-		"kafka_topic": resourceKafkaTopic(),
-	}
+	resourceMap := map[string]*schema.Resource{"kafka_topic": resourceKafkaTopic()}
 
 	// return the Provider with map of resources and their operations
 	return &schema.Provider{ResourcesMap: resourceMap}
