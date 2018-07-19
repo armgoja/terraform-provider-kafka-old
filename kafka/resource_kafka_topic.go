@@ -10,16 +10,19 @@ func resourceKafkaTopic() *schema.Resource {
 		Read:   resourceKafkaTopicRead,
 		Update: resourceKafkaTopicUpdate,
 		Delete: resourceKafkaTopicDelete,
+		Schema: kafkaSchema(),
+	}
+}
 
-		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-			},
-			"partitions": &schema.Schema{
-				Type:     schema.TypeInt,
-				Required: true,
-			},
+func kafkaSchema() map[string]*schema.Schema {
+	return map[string]*schema.Schema{
+		"name": &schema.Schema{
+			Type:     schema.TypeString,
+			Required: true,
+		},
+		"partitions": &schema.Schema{
+			Type:     schema.TypeInt,
+			Required: true,
 		},
 	}
 }
