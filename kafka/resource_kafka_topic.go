@@ -128,6 +128,7 @@ func createTopicRequest(name string, partition int, replicationFactor int) *sara
 	if replicationFactor != 0 {
 		topicDetail.ReplicationFactor = int16(replicationFactor)
 	}
+	// Can add other configurations here if required
 	topicDetail.ConfigEntries = make(map[string]*string)
 
 	topicDetails := make(map[string]*sarama.TopicDetail)
