@@ -1,20 +1,41 @@
 package kafka
 
 import (
-	"context"
+	"errors"
+	"fmt"
 	"log"
+	"time"
 
+	"github.com/Shopify/sarama"
 	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/segmentio/kafka-go"
 )
 
-func dialConnection(topic string, partition int) (*kafka.Conn, error) {
-	var conn *kafka.Conn
-	var err error
-	if conn, err = kafka.DialLeader(context.Background(), "tcp", "localhost:9092", topic, partition); err != nil {
+func brokerConnection() (*sarama.Broker, error) {
+	// new broker instance
+	broker := sarama.NewBroker("localhost:9092")
+
+	// broker configuration
+	config := sarama.NewConfig()
+	config.Version = sarama.V1_0_0_0
+
+	// open broker with defined broker configuration
+	err := broker.Open(config)
+	if err != nil {
+		log.Println("Error establishing connection to broker ", err.Error())
 		return nil, err
 	}
-	return conn, nil
+
+	// check if broker connection is available
+	connected, err := broker.Connected()
+	if err != nil {
+		log.Println("Broker not connected ", err.Error())
+		return nil, err
+	} else if connected != true {
+		log.Println("Broker is not connected")
+		return nil, errors.New("Broker not connected")
+	}
+
+	return broker, nil
 }
 
 func resourceKafkaTopic() *schema.Resource {
@@ -41,38 +62,39 @@ func kafkaSchema() map[string]*schema.Schema {
 		},
 		"replication_factor": &schema.Schema{
 			Type:        schema.TypeInt,
-			Optional:    true,
+			Required:    true,
 			Description: "Replication factor for this Topic",
 		},
 	}
 }
 
 func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
+	var broker *sarama.Broker
+	var err error
 	// Get basic topic properties from input
 	name, partition, replicationFactor, err := extractCreateParams(d)
-	log.Printf("Topic Name : %s , Number of Partitions : %d , Replication Factor : %d", name, partition, replicationFactor)
 
-	// Create a kafka admin client
-	conn, err := dialConnection(name, partition)
-	if err != nil {
-		log.Print("Error creating kafka connection", err.Error())
+	// Get the broker instance
+	if broker, err = brokerConnection(); err != nil {
+		log.Println("Broker connection failed")
 		return err
 	}
-	defer conn.Close()
+	defer broker.Close()
 
-	// Kafka topic configuration
-	topicConfig := createTopicConfig(name, partition, replicationFactor)
-	log.Printf("Kafka Topic Configuration :: %#v", topicConfig)
+	// Prepare CreateTopicRequest
+	topicRequest := createTopicRequest(name, partition, replicationFactor)
 
-	// Create a kafka topic using client
-	if err = conn.CreateTopics(topicConfig); err != nil {
+	// Create a kafka topic using broker
+	response, err := broker.CreateTopics(topicRequest)
+	if err != nil {
 		log.Printf("Error creating kafka Topic :: %s", err.Error())
 		return err
 	}
-
-	d.SetId(name)
-
 	// check and send error if any
+	if response.TopicErrors[name].Err != sarama.ErrNoError {
+		return fmt.Errorf("topic error: %v", response.TopicErrors[name].Err)
+	}
+	d.SetId(name)
 	return nil
 }
 
@@ -100,10 +122,19 @@ func extractCreateParams(d *schema.ResourceData) (string, int, int, error) {
 	return name, partition, replicationFactor, nil
 }
 
-func createTopicConfig(name string, partition int, replicationFactor int) kafka.TopicConfig {
-	return kafka.TopicConfig{
-		NumPartitions:     partition,
-		Topic:             name,
-		ReplicationFactor: replicationFactor,
+func createTopicRequest(name string, partition int, replicationFactor int) *sarama.CreateTopicsRequest {
+	topicDetail := &sarama.TopicDetail{}
+	topicDetail.NumPartitions = int32(partition)
+	if replicationFactor != 0 {
+		topicDetail.ReplicationFactor = int16(replicationFactor)
+	}
+	topicDetail.ConfigEntries = make(map[string]*string)
+
+	topicDetails := make(map[string]*sarama.TopicDetail)
+	topicDetails[name] = topicDetail
+
+	return &sarama.CreateTopicsRequest{
+		Timeout:      time.Second * 15,
+		TopicDetails: topicDetails,
 	}
 }
