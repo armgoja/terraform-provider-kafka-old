@@ -107,6 +107,32 @@ func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
+	broker, err := brokerConnection()
+	if err != nil {
+		return err
+	}
+
+	defer broker.Close()
+
+	topic := d.Get("name").(string)
+
+	if topic == "" || &topic == nil {
+		return errors.New("Provide a topic name")
+	}
+
+	response, err := broker.DeleteTopics(&sarama.DeleteTopicsRequest{
+		Topics:  []string{topic},
+		Timeout: time.Second * 20,
+	})
+
+	if err != nil {
+		log.Printf("Error Deleting topic %s", err.Error())
+		return err
+	}
+
+	if response.TopicErrorCodes[topic] != sarama.ErrNoError {
+		return errors.New(response.TopicErrorCodes[topic].Error())
+	}
 	return nil
 }
 
