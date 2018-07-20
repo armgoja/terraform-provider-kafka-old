@@ -26,15 +26,3 @@ func TestKafkaSchema(t *testing.T) {
 		}
 	}
 }
-
-func TestCreateTopicConfig(t *testing.T) {
-
-	name := "my-topic"
-	partition := 2
-	replicationFactor := 1
-	topicConfig := createTopicConfig(name, partition, replicationFactor)
-
-	assert.Equal(t, name, topicConfig.Topic)
-	assert.Equal(t, partition, topicConfig.NumPartitions)
-	assert.Equal(t, replicationFactor, topicConfig.ReplicationFactor)
-}

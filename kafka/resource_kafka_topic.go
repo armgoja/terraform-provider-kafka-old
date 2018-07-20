@@ -4,11 +4,13 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/hashicorp/terraform/helper/schema"
+	"github.com/sysco-middleware/terraform-provider-kafka/kafka/helper"
 )
+
+var r = helper.ResourceHelper{}
 
 func brokerConnection() (*sarama.Broker, error) {
 	// new broker instance
@@ -72,7 +74,7 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 	var broker *sarama.Broker
 	var err error
 	// Get basic topic properties from input
-	name, partition, replicationFactor, err := extractCreateParams(d)
+	name, partition, replicationFactor, err := r.CreateResourceParams(d)
 
 	// Get the broker instance
 	if broker, err = brokerConnection(); err != nil {
@@ -82,7 +84,7 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 	defer broker.Close()
 
 	// Prepare CreateTopicRequest
-	topicRequest := createTopicRequest(name, partition, replicationFactor)
+	topicRequest := r.CreateKafkaTopicRequest(name, partition, replicationFactor)
 
 	// Create a kafka topic using broker
 	response, err := broker.CreateTopics(topicRequest)
@@ -99,6 +101,26 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicRead(d *schema.ResourceData, m interface{}) error {
+	topic := d.Get("name").(string)
+	broker, err := brokerConnection()
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+	defer broker.Close()
+
+	response, err := broker.GetMetadata(r.GetKafkaMetadataRequest(topic))
+
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+
+	if len(response.Topics) < 1 {
+		msg := "The requested topic does not exist"
+		log.Println(msg)
+		return errors.New(msg)
+	}
 	return nil
 }
 
@@ -118,18 +140,18 @@ func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
 		log.Println(err.Error())
 		return err
 	}
+	defer broker.Close()
 
 	// Check if there is change in number of partitions
 	if d.HasChange("partitions") {
 		oldVal, newVal := d.GetChange("partitions")
-
 		// Validate the number of partitions
 		if newVal.(int) < oldVal.(int) {
 			msg := fmt.Sprintf("Number of partitions can not be reduced, please provide a value greater than %s", oldVal.(string))
 			log.Println(msg)
 			return errors.New(msg)
 		}
-		request := createPartitionRequest(topic, newVal.(int32))
+		request := r.CreateKafkaPartitionRequest(topic, newVal.(int32))
 		response, err := broker.CreatePartitions(request)
 		if err != nil {
 			log.Println(err.Error())
@@ -141,7 +163,6 @@ func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
 			return err.Err
 		}
 	}
-
 	return nil
 }
 
@@ -159,7 +180,7 @@ func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
 		return errors.New("Provide a topic name")
 	}
 
-	response, err := broker.DeleteTopics(deleteTopicsRequest(topic))
+	response, err := broker.DeleteTopics(r.DeleteKafkaTopicRequest(topic))
 
 	if err != nil {
 		log.Printf("Error Deleting topic %s", err.Error())
@@ -170,52 +191,4 @@ func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
 		return errors.New(response.TopicErrorCodes[topic].Error())
 	}
 	return nil
-}
-
-/////////////// Helper methods. These can be extracted to another file later
-
-func extractCreateParams(d *schema.ResourceData) (string, int, int, error) {
-	name := d.Get("name").(string)
-	partition := d.Get("partitions").(int)
-	replicationFactor := d.Get("replication_factor").(int)
-	log.Printf("Topic Name : %s , Number of Partitions : %d , Replication Factor : %d", name, partition, replicationFactor)
-
-	// TBD : Perform some validations if required
-	return name, partition, replicationFactor, nil
-}
-
-func createTopicRequest(name string, partition int, replicationFactor int) *sarama.CreateTopicsRequest {
-	topicDetail := &sarama.TopicDetail{}
-	topicDetail.NumPartitions = int32(partition)
-	if replicationFactor != 0 {
-		topicDetail.ReplicationFactor = int16(replicationFactor)
-	}
-	// Can add other configurations here if required
-	topicDetail.ConfigEntries = make(map[string]*string)
-
-	topicDetails := make(map[string]*sarama.TopicDetail)
-	topicDetails[name] = topicDetail
-
-	return &sarama.CreateTopicsRequest{
-		Timeout:      time.Second * 15,
-		TopicDetails: topicDetails,
-	}
-}
-
-func deleteTopicsRequest(topic string) *sarama.DeleteTopicsRequest {
-	return &sarama.DeleteTopicsRequest{
-		Topics:  []string{topic},
-		Timeout: time.Second * 20,
-	}
-}
-
-func createPartitionRequest(topic string, partitions int32) *sarama.CreatePartitionsRequest {
-	var topicPartition sarama.TopicPartition
-	topicPartition.Count = partitions
-
-	var request sarama.CreatePartitionsRequest
-	request.Timeout = time.Second * 15
-	request.TopicPartitions = map[string]*sarama.TopicPartition{topic: &topicPartition}
-
-	return &request
 }
