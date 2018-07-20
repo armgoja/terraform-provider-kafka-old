@@ -103,15 +103,54 @@ func resourceKafkaTopicRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
+
+	topic := d.Get("name").(string)
+
+	// Replication factor cannot be changed
+	if d.HasChange("replication_factor") {
+		msg := "Replication factor cannot be changed on the fly"
+		log.Println(msg)
+		return errors.New(msg)
+	}
+
+	broker, err := brokerConnection()
+	if err != nil {
+		log.Println(err.Error())
+		return err
+	}
+
+	// Check if there is change in number of partitions
+	if d.HasChange("partitions") {
+		oldVal, newVal := d.GetChange("partitions")
+
+		// Validate the number of partitions
+		if newVal.(int) < oldVal.(int) {
+			msg := fmt.Sprintf("Number of partitions can not be reduced, please provide a value greater than %s", oldVal.(string))
+			log.Println(msg)
+			return errors.New(msg)
+		}
+		request := createPartitionRequest(topic, newVal.(int32))
+		response, err := broker.CreatePartitions(request)
+		if err != nil {
+			log.Println(err.Error())
+			return err
+		}
+
+		if err := response.TopicPartitionErrors[topic]; err.Err != sarama.ErrNoError {
+			log.Println(err.Err.Error())
+			return err.Err
+		}
+	}
+
 	return nil
 }
 
 func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
+
 	broker, err := brokerConnection()
 	if err != nil {
 		return err
 	}
-
 	defer broker.Close()
 
 	topic := d.Get("name").(string)
@@ -120,10 +159,7 @@ func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
 		return errors.New("Provide a topic name")
 	}
 
-	response, err := broker.DeleteTopics(&sarama.DeleteTopicsRequest{
-		Topics:  []string{topic},
-		Timeout: time.Second * 20,
-	})
+	response, err := broker.DeleteTopics(deleteTopicsRequest(topic))
 
 	if err != nil {
 		log.Printf("Error Deleting topic %s", err.Error())
@@ -164,4 +200,22 @@ func createTopicRequest(name string, partition int, replicationFactor int) *sara
 		Timeout:      time.Second * 15,
 		TopicDetails: topicDetails,
 	}
+}
+
+func deleteTopicsRequest(topic string) *sarama.DeleteTopicsRequest {
+	return &sarama.DeleteTopicsRequest{
+		Topics:  []string{topic},
+		Timeout: time.Second * 20,
+	}
+}
+
+func createPartitionRequest(topic string, partitions int32) *sarama.CreatePartitionsRequest {
+	var topicPartition sarama.TopicPartition
+	topicPartition.Count = partitions
+
+	var request sarama.CreatePartitionsRequest
+	request.Timeout = time.Second * 15
+	request.TopicPartitions = map[string]*sarama.TopicPartition{topic: &topicPartition}
+
+	return &request
 }
