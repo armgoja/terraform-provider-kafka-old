@@ -12,34 +12,6 @@ import (
 
 var r = helper.ResourceHelper{}
 
-func brokerConnection() (*sarama.Broker, error) {
-	// new broker instance
-	broker := sarama.NewBroker("localhost:9092")
-
-	// broker configuration
-	config := sarama.NewConfig()
-	config.Version = sarama.V1_0_0_0
-
-	// open broker with defined broker configuration
-	err := broker.Open(config)
-	if err != nil {
-		log.Println("Error establishing connection to broker ", err.Error())
-		return nil, err
-	}
-
-	// check if broker connection is available
-	connected, err := broker.Connected()
-	if err != nil {
-		log.Println("Broker not connected ", err.Error())
-		return nil, err
-	} else if connected != true {
-		log.Println("Broker is not connected")
-		return nil, errors.New("Broker not connected")
-	}
-
-	return broker, nil
-}
-
 func resourceKafkaTopic() *schema.Resource {
 	return &schema.Resource{
 		Create: resourceKafkaTopicCreate,
@@ -71,17 +43,11 @@ func kafkaSchema() map[string]*schema.Schema {
 }
 
 func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
-	var broker *sarama.Broker
-	var err error
+    broker := m.(*sarama.Broker)
+	defer broker.Close()
+
 	// Get basic topic properties from input
 	name, partition, replicationFactor, err := r.CreateResourceParams(d)
-
-	// Get the broker instance
-	if broker, err = brokerConnection(); err != nil {
-		log.Println("Broker connection failed")
-		return err
-	}
-	defer broker.Close()
 
 	// Prepare CreateTopicRequest
 	topicRequest := r.CreateKafkaTopicRequest(name, partition, replicationFactor)
@@ -101,13 +67,10 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicRead(d *schema.ResourceData, m interface{}) error {
-	topic := d.Get("name").(string)
-	broker, err := brokerConnection()
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
+    broker := m.(*sarama.Broker)
 	defer broker.Close()
+
+	topic := d.Get("name").(string)
 
 	response, err := broker.GetMetadata(r.GetKafkaMetadataRequest(topic))
 
@@ -125,6 +88,8 @@ func resourceKafkaTopicRead(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
+    broker := m.(*sarama.Broker)
+	defer broker.Close()
 
 	topic := d.Get("name").(string)
 
@@ -134,13 +99,6 @@ func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
 		log.Println(msg)
 		return errors.New(msg)
 	}
-
-	broker, err := brokerConnection()
-	if err != nil {
-		log.Println(err.Error())
-		return err
-	}
-	defer broker.Close()
 
 	// Check if there is change in number of partitions
 	if d.HasChange("partitions") {
@@ -167,11 +125,7 @@ func resourceKafkaTopicUpdate(d *schema.ResourceData, m interface{}) error {
 }
 
 func resourceKafkaTopicDelete(d *schema.ResourceData, m interface{}) error {
-
-	broker, err := brokerConnection()
-	if err != nil {
-		return err
-	}
+    broker := m.(*sarama.Broker)
 	defer broker.Close()
 
 	topic := d.Get("name").(string)
