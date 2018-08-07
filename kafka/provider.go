@@ -18,8 +18,8 @@ func Provider() terraform.ResourceProvider {
 	return &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"broker_list": &schema.Schema{
-				Type: schema.TypeString,
-				Required: true,
+				Type:        schema.TypeString,
+				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("KAFKA_BROKER_LIST", nil),
 				ValidateFunc: func(v interface{}, k string) (ws []string, errors []error) {
 					value := v.(string)
@@ -44,15 +44,14 @@ func Provider() terraform.ResourceProvider {
 func provideConfigure(d *schema.ResourceData) (interface{}, error) {
 	brokerList := d.Get("broker_list").(string)
 
-    broker, err := brokerConnection(brokerList)
+	broker, err := brokerConnection(brokerList)
 
-    if err != nil {
+	if err != nil {
 		return nil, err
 	}
 
 	return broker, nil
 }
-
 
 func brokerConnection(brokerList string) (*sarama.Broker, error) {
 	// new broker instance
