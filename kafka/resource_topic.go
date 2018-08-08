@@ -40,10 +40,10 @@ func kafkaSchema() map[string]*schema.Schema {
 			Description: "Replication factor for this Topic",
 		},
 		"cleanup_policy": &schema.Schema{
-			Type:        schema.TypeList,
+			Type:        schema.TypeString,
 			Description: "This string designates the retention policy to use on old log segments.",
 			Optional:    true,
-			Default:     []string{"delete"},
+			Default:     "delete",
 		},
 		"compression_type": &schema.Schema{
 			Type:        schema.TypeString,
@@ -159,17 +159,17 @@ func kafkaSchema() map[string]*schema.Schema {
 			Optional:    true,
 			Default:     "2.0-IV1",
 		},
-		"follower.replication.throttled.replicas": &schema.Schema{
-			Type:        schema.TypeList,
+		"follower_replication_throttled_replicas": &schema.Schema{
+			Type:        schema.TypeString,
 			Description: "A list of replicas for which log replication should be throttled on the follower side.",
 			Optional:    true,
-			Default:     []string{},
+			Default:     "",
 		},
-		"leader.replication.throttled.replicas": &schema.Schema{
-			Type:        schema.TypeList,
+		"leader_replication_throttled_replicas": &schema.Schema{
+			Type:        schema.TypeString,
 			Description: "A list of replicas for which log replication should be throttled on the leader side.",
 			Optional:    true,
-			Default:     []string{},
+			Default:     "",
 		},
 		"preallocate": &schema.Schema{
 			Type:        schema.TypeBool,
@@ -197,10 +197,19 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 	defer broker.Close()
 
 	// Get basic topic properties from input
-	name, partition, replicationFactor, err := r.CreateResourceParams(d)
+	name, partition, replicationFactor, configEntries, err := r.CreateResourceParams(d)
+
+	// TODO: define replica assignment on input schema
+    var replicaAssignment map[int32][]int32
 
 	// Prepare CreateTopicRequest
-	topicRequest := r.CreateKafkaTopicRequest(name, partition, replicationFactor)
+	topicRequest := r.CreateKafkaTopicRequest(
+		name,
+		partition,
+		replicationFactor,
+		replicaAssignment,
+		configEntries,
+	)
 
 	// Create a kafka topic using broker
 	response, err := broker.CreateTopics(topicRequest)
