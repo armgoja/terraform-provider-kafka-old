@@ -4,7 +4,6 @@ import (
 	"errors"
 	"log"
 	"time"
-	"strconv"
 
 	"github.com/Shopify/sarama"
 	"github.com/hashicorp/terraform/helper/schema"
@@ -13,68 +12,70 @@ import (
 // ResourceHelper exposes certain utility methods to configure sarama requests
 type ResourceHelper struct{}
 
+type Topic struct {
+	Name              string
+	Partitions        int
+	ReplicationFactor int
+	ConfigEntries     map[string]*string
+}
+
+func (*ResourceHelper) ValidConfigNames() []string {
+	return []string{
+		"cleanup.policy",
+		"compression.type",
+		"delete.retention.ms",
+		"file.delete.delay.ms",
+		"flush.messages",
+		"flush.ms",
+		"follower.replication.throttled.replicas",
+		"index.interval.bytes",
+		"leader.replication.throttled.replicas",
+		"max.message.bytes",
+		"message.format.version",
+		"message.timestamp.difference.max.ms",
+		"message.timestamp.type",
+		"min.cleanable.dirty.ratio",
+		"min.insync.replicas",
+		"preallocate",
+		"retention.bytes",
+		"retention.ms",
+		"segment.bytes",
+		"segment.index.bytes",
+		"segment.jitter.ms",
+		"segment.ms",
+		"unclean.leader.election.enable",
+		"message.downconversion.enable",
+	}
+
+}
+
 // CreateResourceParams parses the required kafka inputs
-func (*ResourceHelper) CreateResourceParams(d *schema.ResourceData) (string, int, int, map[string]*string, error) {
-	configEntries := make(map[string]*string)
+func (*ResourceHelper) CreateResourceParams(d *schema.ResourceData) (Topic, error) {
 	if d == nil {
-		return "", 0, 0, configEntries, errors.New("Invalid input")
+		return Topic{}, errors.New("Invalid input")
 	}
 	name := d.Get("name").(string)
-	partition := d.Get("partitions").(int)
+	partitions := d.Get("partitions").(int)
 	replicationFactor := d.Get("replication_factor").(int)
-	log.Printf("Topic Name : %s , Number of Partitions : %d , Replication Factor : %d", name, partition, replicationFactor)
-	cleanupPolicy := d.Get("cleanup_policy").(string)
-	compressionType := d.Get("compression_type").(string)
-	deleteRetentionMs := strconv.Itoa(d.Get("delete_retention_ms").(int))
-	fileDeleteDelayMs := strconv.Itoa(d.Get("file_delete_delay_ms").(int))
-	flushMessages := strconv.Itoa(d.Get("flush_messages").(int))
-	flushMs := strconv.Itoa(d.Get("flush_ms").(int))
-	followerReplicationThrottledReplicas := d.Get("follower_replication_throttled_replicas").(string)
-	indexIntervalBytes := strconv.Itoa(d.Get("index_interval_bytes").(int))
-	leaderReplicationThrottledReplicas := d.Get("leader_replication_throttled_replicas").(string)
-	maxMessageBytes := strconv.Itoa(d.Get("max_message_bytes").(int))
-	messageFormatVersion := d.Get("message_format_version").(string)
-	messageTimestampDifferenceMaxMs := strconv.Itoa(d.Get("message_timestamp_difference_max_ms").(int))
-	messageTimestampType := d.Get("message_timestamp_type").(string)
-	minCleanableDirtyRatio := strconv.FormatFloat(d.Get("min_cleanable_dirty_ratio").(float64), 'E', -1, 64)
-	minInsyncReplicas := strconv.Itoa(d.Get("min_insync_replicas").(int))
-	preallocate := strconv.FormatBool(d.Get("preallocate").(bool))
-	retentionBytes := strconv.Itoa(d.Get("retention_bytes").(int))
-	retentionMs := strconv.Itoa(d.Get("retention_ms").(int))
-	segmentBytes := strconv.Itoa(d.Get("segment_bytes").(int))
-	segmentIndexBytes := strconv.Itoa(d.Get("segment_index_bytes").(int))
-	segmentJitterMs := strconv.Itoa(d.Get("segment_jitter_ms").(int))
-	segmentMs := strconv.Itoa(d.Get("segment_ms").(int))
-	uncleanLeaderElectionEnable := strconv.FormatBool(d.Get("unclean_leader_election_enable").(bool))
-	messageDownconversionEnable := strconv.FormatBool(d.Get("message_downconversion_enable").(bool))
 
-	configEntries["cleanup.policy"] = &cleanupPolicy
-	configEntries["compression.type"] = &compressionType
-	configEntries["delete.retention.ms"] = &deleteRetentionMs
-	configEntries["file.delete.delay.ms"] = &fileDeleteDelayMs
-	configEntries["flush.messages"] = &flushMessages
-	configEntries["flush.ms"] = &flushMs
-	configEntries["follower.replication.throttled.replicas"] = &followerReplicationThrottledReplicas
-	configEntries["index.interval.bytes"] = &indexIntervalBytes
-	configEntries["leader.replication.throttled.replicas"] = &leaderReplicationThrottledReplicas
-	configEntries["max.message.bytes"] = &maxMessageBytes
-	configEntries["message.format.version"] = &messageFormatVersion
-	configEntries["message.timestamp.difference.max.ms"] = &messageTimestampDifferenceMaxMs
-	configEntries["message.timestamp.type"] = &messageTimestampType
-	configEntries["min.cleanable.dirty.ratio"] = &minCleanableDirtyRatio
-	configEntries["min.insync.replicas"] = &minInsyncReplicas
-	configEntries["preallocate"] = &preallocate
-	configEntries["retention.bytes"] = &retentionBytes
-	configEntries["retention.ms"] = &retentionMs
-	configEntries["segment.bytes"] = &segmentBytes
-	configEntries["segment.index.bytes"] = &segmentIndexBytes
-	configEntries["segment.jitter.ms"] = &segmentJitterMs
-	configEntries["segment.ms"] = &segmentMs
-	configEntries["unclean.leader.election.enable"] = &uncleanLeaderElectionEnable
-	configEntries["message.downconversion.enable"] = &messageDownconversionEnable
+	configEntries := make(map[string]*string)
 
+	configs := d.Get("config_entries").(map[string]interface{})
+
+	for config, entry := range configs {
+		entryValue := entry.(string)
+		configEntries[config] = &entryValue
+	}
+
+	topic := Topic{
+		Name:              name,
+		Partitions:        partitions,
+		ReplicationFactor: replicationFactor,
+		ConfigEntries:     configEntries,
+	}
+	log.Printf("Topic: %#v", topic)
 	// TBD : Perform some validations if required
-	return name, partition, replicationFactor, configEntries, nil
+	return topic, nil
 }
 
 // CreateKafkaTopicRequest prepares sarama.CreateTopicsRequest from arguments
@@ -86,10 +87,10 @@ func (*ResourceHelper) CreateKafkaTopicRequest(
 	configEntries map[string]*string,
 ) *sarama.CreateTopicsRequest {
 	topicDetail := &sarama.TopicDetail{
-		NumPartitions: int32(partitions),
+		NumPartitions:     int32(partitions),
 		ReplicationFactor: int16(replicationFactor),
 		ReplicaAssignment: replicaAssignment,
-		ConfigEntries: configEntries,
+		ConfigEntries:     configEntries,
 	}
 	topicDetails := make(map[string]*sarama.TopicDetail)
 	topicDetails[name] = topicDetail
@@ -124,5 +125,34 @@ func (*ResourceHelper) CreateKafkaPartitionRequest(topic string, partitions int3
 func (*ResourceHelper) GetKafkaMetadataRequest(topic string) *sarama.MetadataRequest {
 	return &sarama.MetadataRequest{
 		Topics: []string{topic},
+	}
+}
+
+func (*ResourceHelper) GetKafkaConfigsRequest(topic string, configNames []string) *sarama.DescribeConfigsRequest {
+	return &sarama.DescribeConfigsRequest{
+		Resources: []*sarama.ConfigResource{
+			{
+				Type:        sarama.TopicResource,
+				Name:        topic,
+				ConfigNames: configNames,
+			},
+		},
+	}
+}
+
+func (*ResourceHelper) AlterTopicConfigsRequest(topic string, configs map[string]interface{}) *sarama.AlterConfigsRequest {
+	configEntries := make(map[string]*string, len(configs))
+	for config, entry := range configs {
+		entryValue := entry.(string)
+		configEntries[config] = &entryValue
+	}
+	return &sarama.AlterConfigsRequest{
+		Resources: []*sarama.AlterConfigsResource{
+			{
+				Type:          sarama.TopicResource,
+				Name:          topic,
+				ConfigEntries: configEntries,
+			},
+		},
 	}
 }
