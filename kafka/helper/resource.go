@@ -83,9 +83,10 @@ func (*ResourceHelper) CreateKafkaTopicRequest(
 	name string,
 	partitions int,
 	replicationFactor int,
-	replicaAssignment map[int32][]int32,
 	configEntries map[string]*string,
 ) *sarama.CreateTopicsRequest {
+	// TODO: define replica assignment on input schema
+	var replicaAssignment map[int32][]int32
 	topicDetail := &sarama.TopicDetail{
 		NumPartitions:     int32(partitions),
 		ReplicationFactor: int16(replicationFactor),

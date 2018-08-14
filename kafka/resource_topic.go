@@ -57,15 +57,11 @@ func resourceKafkaTopicCreate(d *schema.ResourceData, m interface{}) error {
 	// Get basic topic properties from input
 	topic, err := r.CreateResourceParams(d)
 
-	// TODO: define replica assignment on input schema
-	var replicaAssignment map[int32][]int32
-
 	// Prepare CreateTopicRequest
 	topicRequest := r.CreateKafkaTopicRequest(
 		topic.Name,
 		topic.Partitions,
 		topic.ReplicationFactor,
-		replicaAssignment,
 		topic.ConfigEntries,
 	)
 

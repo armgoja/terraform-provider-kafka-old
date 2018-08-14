@@ -33,20 +33,20 @@ variable "topic_configs_default" {
   }
 }
 
-resource "kafka_topic" "test3" {
+resource "kafka_topic" "test-3" {
   # (resource arguments)
   config_entries = "${merge(var.topic_configs_default, map(
     "cleanup.policy", "compact",
     "compression.type", "gzip"
   ))}"
 
-  name               = "test3"
+  name               = "test-3"
   partitions         = 1
   replication_factor = 1
 }
 
-resource "kafka_topic" "test2" {
-  name               = "test2"
+resource "kafka_topic" "test-2" {
+  name               = "test-2"
   partitions         = 10
   replication_factor = 1
 

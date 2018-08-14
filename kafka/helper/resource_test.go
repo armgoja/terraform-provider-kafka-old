@@ -10,19 +10,20 @@ var helper = ResourceHelper{}
 
 func TestCreateResourceParams(t *testing.T) {
 	assert.NotNil(t, helper)
-	name, partition, repFactor, err := helper.CreateResourceParams(nil)
+	topic, err := helper.CreateResourceParams(nil)
 	assert.NotNil(t, err)
-	assert.Equal(t, "", name)
-	assert.Equal(t, 0, partition)
-	assert.Equal(t, 0, repFactor)
+	assert.Equal(t, "", topic.Name)
+	assert.Equal(t, 0, topic.Partitions)
+	assert.Equal(t, 0, topic.ReplicationFactor)
 }
 
 func TestCreateKafkaTopicRequest(t *testing.T) {
 	aTopic := "myTopic"
 	aPartition := 1
 	aReplicas := 2
+	configEntries := make(map[string]*string)
 
-	response := helper.CreateKafkaTopicRequest(aTopic, aPartition, aReplicas)
+	response := helper.CreateKafkaTopicRequest(aTopic, aPartition, aReplicas, configEntries)
 	assert.NotEmpty(t, response)
 	assert.NotNil(t, response)
 
