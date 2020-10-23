@@ -7,7 +7,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/hashicorp/terraform/helper/schema"
-	"github.com/sysco-middleware/terraform-provider-kafka/kafka/helper"
+	"github.com/armgoja/terraform-provider-kafka-old/helper"
 )
 
 var r = helper.ResourceHelper{}
