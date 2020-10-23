@@ -59,7 +59,7 @@ func brokerConnection(brokerList string) (*sarama.Broker, error) {
 
 	// broker configuration
 	config := sarama.NewConfig()
-	config.Version = sarama.V1_0_0_0
+	config.Version = sarama.V0_11_0_2
 
 	// open broker with defined broker configuration
 	err := broker.Open(config)
