@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/hashicorp/terraform/plugin"
-	"github.com/armgoja/terraform-provider-kafka-old.git"
+	"github.com/armgoja/terraform-provider-kafka-old/kafka"
 )
 
 // This is the entry point for this provider.
